@@ -1,0 +1,38 @@
+# Xcode
+build/
+DerivedData/
+build-release.sh
+.vscode/
+release/
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# App specific
+*.app
+*.log
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
