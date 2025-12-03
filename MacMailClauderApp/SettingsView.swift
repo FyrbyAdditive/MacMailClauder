@@ -194,6 +194,26 @@ struct SetupTab: View {
 
     var body: some View {
         Form {
+            Section("MacMailClauder Full Disk Access") {
+                HStack {
+                    Image(systemName: configStore.fullDiskAccessEnabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .foregroundColor(configStore.fullDiskAccessEnabled ? .green : .red)
+                    Text("Full Disk Access")
+                    Spacer()
+                    if !configStore.fullDiskAccessEnabled {
+                        Button("Fix") {
+                            configStore.openFullDiskAccessSettings()
+                        }
+                    }
+                }
+
+                if !configStore.fullDiskAccessEnabled {
+                    Text("MacMailClauder needs Full Disk Access to discover email accounts. Click 'Fix' to open System Settings, then enable MacMailClauder in the list.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
             Section("Claude Desktop Integration") {
                 HStack {
                     Image(systemName: configStore.claudeDesktopConfigured ? "checkmark.circle.fill" : "exclamationmark.circle.fill")

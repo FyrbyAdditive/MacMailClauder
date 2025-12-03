@@ -6,6 +6,7 @@ import SwiftUI
 class ConfigStore: ObservableObject {
     @Published var config: MacMailClauderConfig
     @Published var claudeDesktopConfigured: Bool = false
+    @Published var fullDiskAccessEnabled: Bool = false
 
     private let fileManager = FileManager.default
 
@@ -49,6 +50,21 @@ class ConfigStore: ObservableObject {
 
     func checkPermissions() {
         claudeDesktopConfigured = checkClaudeDesktopConfig()
+        fullDiskAccessEnabled = checkFullDiskAccess()
+    }
+
+    private func checkFullDiskAccess() -> Bool {
+        // Check if we can read the Accounts database - requires Full Disk Access
+        let accountsPath = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Accounts/Accounts4.sqlite").path
+        return fileManager.isReadableFile(atPath: accountsPath)
+    }
+
+    func openFullDiskAccessSettings() {
+        // Open System Settings to Privacy & Security > Full Disk Access
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func checkClaudeDesktopConfig() -> Bool {

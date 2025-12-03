@@ -22,8 +22,18 @@ struct MenuBarView: View {
             // Status Section
             VStack(alignment: .leading, spacing: 8) {
                 StatusRow(
+                    title: "MacMailClauder Full Disk Access",
+                    isEnabled: configStore.fullDiskAccessEnabled,
+                    disabledColor: .red,
+                    action: {
+                        configStore.openFullDiskAccessSettings()
+                    }
+                )
+
+                StatusRow(
                     title: "Claude Desktop Configured",
                     isEnabled: configStore.claudeDesktopConfigured,
+                    disabledColor: .orange,
                     action: {
                         try? configStore.configureClaudeDesktop()
                     }
@@ -59,12 +69,13 @@ struct MenuBarView: View {
 struct StatusRow: View {
     let title: String
     let isEnabled: Bool
+    var disabledColor: Color = .orange
     let action: () -> Void
 
     var body: some View {
         HStack {
             Image(systemName: isEnabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .foregroundColor(isEnabled ? .green : .orange)
+                .foregroundColor(isEnabled ? .green : disabledColor)
 
             Text(title)
                 .font(.subheadline)
