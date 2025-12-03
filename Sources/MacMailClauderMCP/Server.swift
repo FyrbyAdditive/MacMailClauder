@@ -370,13 +370,14 @@ actor MailMCPServer {
         var afterDate: Date?
         var beforeDate: Date?
 
-        // Parse dates
-        let formatter = ISO8601DateFormatter()
+        // Parse dates - support multiple formats
         if let afterStr = afterStr {
-            afterDate = formatter.date(from: afterStr)
+            afterDate = parseFlexibleDate(afterStr)
+            log("Parsed after date: \(afterStr) -> \(String(describing: afterDate))")
         }
         if let beforeStr = beforeStr {
-            beforeDate = formatter.date(from: beforeStr)
+            beforeDate = parseFlexibleDate(beforeStr)
+            log("Parsed before date: \(beforeStr) -> \(String(describing: beforeDate))")
         }
 
         // Apply scope date filter
@@ -666,5 +667,36 @@ actor MailMCPServer {
         } catch {
             return CallTool.Result(content: [.text("Error encoding config: \(error.localizedDescription)")])
         }
+    }
+
+    /// Parse dates in multiple formats: YYYY-MM-DD, ISO8601, etc.
+    private func parseFlexibleDate(_ string: String) -> Date? {
+        // Try ISO8601 full format first (2025-04-28T00:00:00Z)
+        let iso8601 = ISO8601DateFormatter()
+        if let date = iso8601.date(from: string) {
+            return date
+        }
+
+        // Try date-only format (2025-04-28)
+        let dateOnly = DateFormatter()
+        dateOnly.dateFormat = "yyyy-MM-dd"
+        dateOnly.timeZone = TimeZone.current
+        if let date = dateOnly.date(from: string) {
+            return date
+        }
+
+        // Try with slashes (2025/04/28)
+        dateOnly.dateFormat = "yyyy/MM/dd"
+        if let date = dateOnly.date(from: string) {
+            return date
+        }
+
+        // Try US format (04-28-2025)
+        dateOnly.dateFormat = "MM-dd-yyyy"
+        if let date = dateOnly.date(from: string) {
+            return date
+        }
+
+        return nil
     }
 }

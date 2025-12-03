@@ -345,15 +345,20 @@ class MailDatabase {
         }
 
         if let after = after {
-            let timestamp = after.timeIntervalSinceReferenceDate
+            // Use Unix timestamp (seconds since 1970) for comparison
+            // Mail.app stores timestamps as Unix time, not reference date
+            let timestamp = after.timeIntervalSince1970
             sql += " AND m.date_received >= ?"
             bindings.append(timestamp)
+            log("Date filter: after=\(after), timestamp=\(timestamp)")
         }
 
         if let before = before {
-            let timestamp = before.timeIntervalSinceReferenceDate
+            // Use Unix timestamp (seconds since 1970) for comparison
+            let timestamp = before.timeIntervalSince1970
             sql += " AND m.date_received <= ?"
             bindings.append(timestamp)
+            log("Date filter: before=\(before), timestamp=\(timestamp)")
         }
 
         sql += " ORDER BY m.date_received DESC LIMIT ?"
