@@ -72,9 +72,49 @@ struct PermissionsTab: View {
 struct ScopeTab: View {
     @ObservedObject var configStore: ConfigStore
     @Binding var availableMailboxes: [String]
+    @State private var availableAccounts: [AccountInfo] = []
+
+    private func isAccountEnabled(_ account: AccountInfo) -> Binding<Bool> {
+        Binding(
+            get: { configStore.config.scope.enabledAccounts.contains(account.email) },
+            set: { enabled in
+                if enabled {
+                    if !configStore.config.scope.enabledAccounts.contains(account.email) {
+                        configStore.config.scope.enabledAccounts.append(account.email)
+                    }
+                } else {
+                    configStore.config.scope.enabledAccounts.removeAll { $0 == account.email }
+                }
+            }
+        )
+    }
 
     var body: some View {
         Form {
+            Section("Account Access") {
+                if availableAccounts.isEmpty {
+                    Text("No email accounts found")
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Enable accounts Claude can access:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    ForEach(availableAccounts) { account in
+                        Toggle(isOn: isAccountEnabled(account)) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.email)
+                                if let description = account.accountDescription, !description.isEmpty {
+                                    Text(description)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Section("Date Range") {
                 Picker("Show emails from", selection: $configStore.config.scope.dateRange) {
                     ForEach(MacMailClauderConfig.DateRange.allCases, id: \.self) { range in
@@ -128,6 +168,12 @@ struct ScopeTab: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            availableAccounts = configStore.discoverAccounts()
+        }
+        .onChange(of: configStore.config.scope.enabledAccounts) {
+            configStore.save()
+        }
         .onChange(of: configStore.config.scope.dateRange) {
             configStore.save()
         }

@@ -315,9 +315,19 @@ actor MailMCPServer {
 
         let config = configManager.load()
 
+        // Check if any accounts are enabled
+        if config.scope.enabledAccounts.isEmpty {
+            return CallTool.Result(content: [.text("No email accounts are enabled. Use the MacMailClauder menu bar app to enable account access in Settings > Scope.")])
+        }
+
         do {
             let mailboxes = try db.listMailboxes()
             let filtered = mailboxes.filter { mailbox in
+                // Check if account is enabled
+                guard let accountName = mailbox.accountName else { return false }
+                guard config.scope.enabledAccounts.contains(accountName) else {
+                    return false
+                }
                 // Check excluded mailboxes
                 if config.scope.excludedMailboxes.contains(where: { mailbox.name.localizedCaseInsensitiveContains($0) }) {
                     return false
@@ -356,6 +366,13 @@ actor MailMCPServer {
             return CallTool.Result(content: [.text("Error: Mail database not available. Please ensure Full Disk Access is granted.")])
         }
 
+        let config = configManager.load()
+
+        // Check if any accounts are enabled
+        if config.scope.enabledAccounts.isEmpty {
+            return CallTool.Result(content: [.text("No email accounts are enabled. Use the MacMailClauder menu bar app to enable account access in Settings > Scope.")])
+        }
+
         let query = arguments["query"]?.stringValue
         let from = arguments["from"]?.stringValue
         let to = arguments["to"]?.stringValue
@@ -364,7 +381,6 @@ actor MailMCPServer {
         let beforeStr = arguments["before"]?.stringValue
         let limit = arguments["limit"]?.intValue ?? 20
 
-        let config = configManager.load()
         let effectiveLimit = min(limit, config.scope.maxResults)
 
         var afterDate: Date?
@@ -395,7 +411,8 @@ actor MailMCPServer {
                 mailbox: mailbox,
                 after: afterDate,
                 before: beforeDate,
-                limit: effectiveLimit
+                limit: effectiveLimit,
+                enabledAccounts: config.scope.enabledAccounts
             )
 
             if emails.isEmpty {
@@ -426,6 +443,13 @@ actor MailMCPServer {
             return CallTool.Result(content: [.text("Error: Mail database not available. Please ensure Full Disk Access is granted.")])
         }
 
+        let config = configManager.load()
+
+        // Check if any accounts are enabled
+        if config.scope.enabledAccounts.isEmpty {
+            return CallTool.Result(content: [.text("No email accounts are enabled. Use the MacMailClauder menu bar app to enable account access in Settings > Scope.")])
+        }
+
         guard let mailbox = arguments["mailbox"]?.stringValue else {
             throw MCPError.invalidParams("Missing required parameter: mailbox")
         }
@@ -433,11 +457,15 @@ actor MailMCPServer {
         let limit = arguments["limit"]?.intValue ?? 20
         let offset = arguments["offset"]?.intValue ?? 0
 
-        let config = configManager.load()
         let effectiveLimit = min(limit, config.scope.maxResults)
 
         do {
-            let emails = try db.listEmails(mailbox: mailbox, limit: effectiveLimit, offset: offset)
+            let emails = try db.listEmails(
+                mailbox: mailbox,
+                limit: effectiveLimit,
+                offset: offset,
+                enabledAccounts: config.scope.enabledAccounts
+            )
 
             if emails.isEmpty {
                 return CallTool.Result(content: [.text("No emails found in mailbox '\(mailbox)'.")])
@@ -553,12 +581,18 @@ actor MailMCPServer {
             return CallTool.Result(content: [.text("Error: Mail database not available. Please ensure Full Disk Access is granted.")])
         }
 
+        let config = configManager.load()
+
+        // Check if any accounts are enabled
+        if config.scope.enabledAccounts.isEmpty {
+            return CallTool.Result(content: [.text("No email accounts are enabled. Use the MacMailClauder menu bar app to enable account access in Settings > Scope.")])
+        }
+
         guard let query = arguments["query"]?.stringValue else {
             throw MCPError.invalidParams("Missing required parameter: query")
         }
 
         let limit = arguments["limit"]?.intValue ?? 20
-        let config = configManager.load()
         let effectiveLimit = min(limit, config.scope.maxResults)
 
         do {

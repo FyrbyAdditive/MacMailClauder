@@ -58,6 +58,7 @@ public struct MacMailClauderConfig: Codable {
         public var customStartDate: Date?
         public var excludedMailboxes: [String]
         public var allowedMailboxes: [String]?
+        public var enabledAccounts: [String]  // Account emails that are enabled (allowlist)
         public var maxResults: Int
 
         public init(
@@ -65,12 +66,14 @@ public struct MacMailClauderConfig: Codable {
             customStartDate: Date? = nil,
             excludedMailboxes: [String] = ["Trash", "Junk"],
             allowedMailboxes: [String]? = nil,
+            enabledAccounts: [String] = [],  // Empty = no accounts accessible until user enables
             maxResults: Int = 100
         ) {
             self.dateRange = dateRange
             self.customStartDate = customStartDate
             self.excludedMailboxes = excludedMailboxes
             self.allowedMailboxes = allowedMailboxes
+            self.enabledAccounts = enabledAccounts
             self.maxResults = maxResults
         }
     }

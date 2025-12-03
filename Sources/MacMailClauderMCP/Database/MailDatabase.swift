@@ -73,6 +73,7 @@ class MailDatabase {
         let description: String?
         let username: String?
         let parentAccountPK: Int64?
+        let isActive: Bool
     }
 
     init() throws {
@@ -114,6 +115,10 @@ class MailDatabase {
     }
 
     private func loadAccountInfo() {
+        // First, find which account UUIDs have active Mail data folders
+        let activeMailUUIDs = getActiveMailAccountUUIDs()
+        log("Found \(activeMailUUIDs.count) active mail account UUIDs in Mail data folder")
+
         // Load account info from ~/Library/Accounts/Accounts4.sqlite
         // This maps account UUIDs to email addresses and descriptions
         let accountsPath = FileManager.default.homeDirectoryForCurrentUser
@@ -138,11 +143,15 @@ class MailDatabase {
                 let username = row[3] as? String
                 let parentPK = row[4] as? Int64
 
+                // Only include accounts that have an active Mail data folder
+                let isActive = activeMailUUIDs.contains(identifier)
+
                 pkToIdentifier[pk] = identifier
                 accountInfoCache[identifier] = AccountInfo(
                     description: description,
                     username: username,
-                    parentAccountPK: parentPK
+                    parentAccountPK: parentPK,
+                    isActive: isActive
                 )
             }
 
@@ -157,7 +166,8 @@ class MailDatabase {
                     accountInfoCache[identifier] = AccountInfo(
                         description: parentInfo.description,
                         username: parentInfo.username,
-                        parentAccountPK: info.parentAccountPK
+                        parentAccountPK: info.parentAccountPK,
+                        isActive: info.isActive  // Keep own active status (based on folder existence)
                     )
                     log("Resolved account \(identifier) via parent: \(parentInfo.username ?? parentInfo.description ?? "unknown")")
                 }
@@ -167,6 +177,44 @@ class MailDatabase {
         } catch {
             log("Error reading Accounts database: \(error)")
         }
+    }
+
+    /// Get UUIDs of accounts that have active Mail data folders (not orphaned)
+    private func getActiveMailAccountUUIDs() -> Set<String> {
+        var activeUUIDs = Set<String>()
+
+        // mailDataURL points to ~/Library/Mail/V10 (or similar)
+        // The parent directory contains the version folders
+        let parentDir = mailDataURL.deletingLastPathComponent()
+
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(at: parentDir, includingPropertiesForKeys: nil)
+            for url in contents {
+                let name = url.lastPathComponent
+                // Look for version directories like V10
+                if name.hasPrefix("V"), name.dropFirst().allSatisfy({ $0.isNumber }) {
+                    // Scan this version directory for account folders
+                    let versionContents = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+                    for accountUrl in versionContents {
+                        let accountName = accountUrl.lastPathComponent
+                        // Skip MailData, orphaned accounts, and non-UUID folders
+                        if accountName == "MailData" ||
+                           accountName.hasPrefix("Orphaned") ||
+                           accountName.hasPrefix(".") {
+                            continue
+                        }
+                        // Check if it looks like a UUID (36 chars with dashes)
+                        if accountName.count == 36 && accountName.contains("-") {
+                            activeUUIDs.insert(accountName)
+                        }
+                    }
+                }
+            }
+        } catch {
+            log("Error scanning Mail directory: \(error)")
+        }
+
+        return activeUUIDs
     }
 
     private func logAvailableTables() {
@@ -263,6 +311,10 @@ class MailDatabase {
             // Look up account info from the Accounts database cache
             if let accountUUID = url.host, !accountUUID.isEmpty {
                 if let info = accountInfoCache[accountUUID] {
+                    // Skip inactive accounts - return nil accountName so they get filtered out
+                    guard info.isActive else {
+                        return (name, nil)
+                    }
                     // Prefer: username (email) > description > UUID prefix
                     if let username = info.username, !username.isEmpty {
                         accountName = username
@@ -303,6 +355,39 @@ class MailDatabase {
         return (name, accountName)
     }
 
+    // MARK: - Account Filtering
+
+    /// Get account UUIDs that match the given list of email addresses (only active accounts)
+    func getAccountUUIDs(forEmails emails: [String]) -> Set<String> {
+        var uuids = Set<String>()
+        for (uuid, info) in accountInfoCache {
+            // Only include active accounts
+            if info.isActive, let username = info.username, emails.contains(username) {
+                uuids.insert(uuid)
+            }
+        }
+        return uuids
+    }
+
+    /// Check if a mailbox URL belongs to one of the enabled accounts (must also be active)
+    func isMailboxEnabled(url: String?, enabledAccountEmails: [String]) -> Bool {
+        guard let urlStr = url, let url = URL(string: urlStr) else {
+            return false
+        }
+
+        // Get the account UUID from the URL
+        guard let accountUUID = url.host, !accountUUID.isEmpty else {
+            return false
+        }
+
+        // Check if this account is active and in the enabled list
+        if let info = accountInfoCache[accountUUID], info.isActive, let username = info.username {
+            return enabledAccountEmails.contains(username)
+        }
+
+        return false
+    }
+
     // MARK: - Email Operations
 
     func searchEmails(
@@ -312,9 +397,14 @@ class MailDatabase {
         mailbox: String?,
         after: Date?,
         before: Date?,
-        limit: Int
+        limit: Int,
+        enabledAccounts: [String] = []
     ) throws -> [Email] {
-        log("searchEmails called with query=\(query ?? "nil"), from=\(from ?? "nil"), mailbox=\(mailbox ?? "nil"), limit=\(limit)")
+        log("searchEmails called with query=\(query ?? "nil"), from=\(from ?? "nil"), mailbox=\(mailbox ?? "nil"), limit=\(limit), enabledAccounts=\(enabledAccounts)")
+
+        // Get the UUIDs for enabled accounts
+        let enabledUUIDs = getAccountUUIDs(forEmails: enabledAccounts)
+        log("Enabled account UUIDs: \(enabledUUIDs)")
 
         // Build raw SQL query for better compatibility
         // Note: document_id is the .emlx filename, message_id is internal
@@ -328,6 +418,17 @@ class MailDatabase {
             WHERE 1=1
             """
         var bindings: [Binding?] = []
+
+        // Filter by enabled accounts if specified
+        if !enabledAccounts.isEmpty && !enabledUUIDs.isEmpty {
+            // Build URL patterns for enabled accounts
+            let patterns = enabledUUIDs.map { "%\($0)%" }
+            let placeholders = patterns.map { _ in "mb.url LIKE ?" }.joined(separator: " OR ")
+            sql += " AND (\(placeholders))"
+            for pattern in patterns {
+                bindings.append(pattern)
+            }
+        }
 
         if let query = query, !query.isEmpty {
             sql += " AND s.subject LIKE ?"
@@ -455,8 +556,11 @@ class MailDatabase {
         }
     }
 
-    func listEmails(mailbox: String, limit: Int, offset: Int) throws -> [Email] {
-        log("listEmails called for mailbox=\(mailbox), limit=\(limit), offset=\(offset)")
+    func listEmails(mailbox: String, limit: Int, offset: Int, enabledAccounts: [String] = []) throws -> [Email] {
+        log("listEmails called for mailbox=\(mailbox), limit=\(limit), offset=\(offset), enabledAccounts=\(enabledAccounts)")
+
+        // Get the UUIDs for enabled accounts
+        let enabledUUIDs = getAccountUUIDs(forEmails: enabledAccounts)
 
         var sql: String
         var bindings: [Binding?]
@@ -472,10 +576,8 @@ class MailDatabase {
                 LEFT JOIN addresses a ON m.sender = a.ROWID
                 LEFT JOIN mailboxes mb ON m.mailbox = mb.ROWID
                 WHERE m.mailbox = ?
-                ORDER BY m.date_received DESC
-                LIMIT ? OFFSET ?
                 """
-            bindings = [mailboxId, limit, offset]
+            bindings = [mailboxId]
         } else {
             // Query by mailbox name in URL
             sql = """
@@ -486,11 +588,23 @@ class MailDatabase {
                 LEFT JOIN addresses a ON m.sender = a.ROWID
                 LEFT JOIN mailboxes mb ON m.mailbox = mb.ROWID
                 WHERE mb.url LIKE ?
-                ORDER BY m.date_received DESC
-                LIMIT ? OFFSET ?
                 """
-            bindings = ["%\(mailbox)%", limit, offset]
+            bindings = ["%\(mailbox)%"]
         }
+
+        // Add account filter if enabled accounts are specified
+        if !enabledAccounts.isEmpty && !enabledUUIDs.isEmpty {
+            let patterns = enabledUUIDs.map { "%\($0)%" }
+            let placeholders = patterns.map { _ in "mb.url LIKE ?" }.joined(separator: " OR ")
+            sql += " AND (\(placeholders))"
+            for pattern in patterns {
+                bindings.append(pattern)
+            }
+        }
+
+        sql += " ORDER BY m.date_received DESC LIMIT ? OFFSET ?"
+        bindings.append(limit)
+        bindings.append(offset)
 
         var result: [Email] = []
 

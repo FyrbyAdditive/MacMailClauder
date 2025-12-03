@@ -1,3 +1,4 @@
+![MacMailClauder Icon](https://raw.githubusercontent.com/FyrbyAdditive/MacMailClauder/refs/heads/main/MacMailClauderApp/Assets.xcassets/AppIcon.appiconset/AppIconOriginal-128.png)
 # MacMailClauder
 
 A macOS Mail.app integration for Claude Desktop via MCP (Model Context Protocol).
@@ -74,4 +75,5 @@ Once configured, you can ask Claude things like:
 
 ## License
 
-MIT License
+This software is Copyright 2025 Timothy Ellis, Fyrby Additive Manufacturing & Engineering and is distributed under the MIT License.
+
