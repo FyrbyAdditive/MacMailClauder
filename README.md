@@ -3,6 +3,14 @@
 
 A macOS Mail.app integration for Claude Desktop via MCP (Model Context Protocol).
 
+# New In 1.0.2
+
+In version 1.0.2 there is a new feature which allows you to select accounts you would like to allow Claude to access.
+
+This feature is opt-in, hence you will need to flick switches when you upgrade to make it work again.
+
+Also note you will need to give MacMailClauder full disk access due to this feature when you upgrade.
+
 ## Features
 
 - **Search Emails** - Search by sender, subject, date range, or body content
@@ -20,7 +28,16 @@ This integration is only for Apple Mail, and integrates with it via read-only us
 
 I discovered there are limitations on what you can easily/quickly get into Claude Desktop. This is particularly relevant for attachments and things. However, attachment data is passed to Claude Desktop as text to get around this.
 
-This application has two components. A menu bar application for initial configuration, and a command line MCP server that runs from Claude. The MCP server inherits its permissions from Claude, which is why Claude needs Full Disk Access permissions. There are better ways to do this but this is how it is for now. Note that after initial configuration, you do not need to run the menu bar app unless you want to.
+This application has two components:
+
+- A menu bar application for initial configuration
+- A command line MCP server that runs from Claude Desktop
+
+The MCP server inherits its permissions from Claude, which is why Claude needs Full Disk Access permissions, else it cannot read the mail databases.
+
+The menu bar configuration app also needs FDA, as it needs to query various databases to check the status of email accounts so you can control which accounts Claude has access to.
+
+There are better ways to do this but this is how it is for now. Note that after initial configuration, you do not need to run the menu bar app unless you want to.
 
 ## Requirements
 
@@ -36,12 +53,12 @@ Please use one of the prepared signed package installers here from Github.
 
 ### 1. Grant Full Disk Access
 
-Claude Desktop needs Full Disk Access so when it runs our MCP server it runs can read Mail.app's database:
+Claude Desktop and MacMailClauder need Full Disk Access so they can read relevant mail related databases:
 
 1. Open **System Settings** → **Privacy & Security** → **Full Disk Access**
-2. Claude is probably already in the list. If it is, enable the switch.
-2. If it is not, click the **+** button
-3. Navigate to your applications folder, drag it in, and enable it.
+2. Claude and MacMailClauder are probably already in the list. If they are, enable the switches.
+2. If they are not, click the **+** button
+3. Navigate to your applications folder, drag them in, and enable them.
 
 ### 2. Configure Claude Desktop
 
@@ -72,6 +89,10 @@ Once configured, you can ask Claude things like:
 - "Show me the PDF attachments I received this month"
 - "Find the invoice with number 12345 in my attachments"
 - "Open that email in Mail.app"
+
+## Privacy
+
+This application does not collect any data and sends absolutely no data of any kind anywhere except to Claude Desktop (and therefore its cloud service) through the normal operation of the application in conjunction with Claude Desktop.
 
 ## License
 
